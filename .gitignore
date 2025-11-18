@@ -1,0 +1,36 @@
+# Файлы видео и мультимедиа
+videos/
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# Данные и датасеты
+data/
+dataset/
+*.zip
+*.rar
+*.tar.gz
+
+# Веса моделей и чекпоинты
+checkpoints/
+*.pth
+*.pt
+*.bin
+
+# Результаты обучения, логи
+results/
+logs/
+*.log
+
+# Временные файлы IDE / Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+*.env
+.vscode/
+.idea/
+.DS_Store
+
