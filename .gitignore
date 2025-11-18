@@ -8,6 +8,7 @@ videos/
 # Данные и датасеты
 data/
 dataset/
+datasets/
 *.zip
 *.rar
 *.tar.gz
