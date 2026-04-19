@@ -75,7 +75,7 @@ def print_and_save_metrics(metrics, model=None, out_dir="runs/metrics"):
 # ---------------------------
 def main():
     # 1. Загружаем обученную модель
-    model_path = "runs/train/rtdetr_s_aug_3050ti5/weights/best.pt"
+    model_path = "best_weights/rtdetr_best.pt"
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Файл модели не найден: {model_path}")
 
@@ -85,7 +85,7 @@ def main():
     # ---------------------------
     # 2. Анализ видео + измерение FPS
     # ---------------------------
-    video_path = "video_2025-10-06_20-06-02.mp4"
+    video_path = "video/video_2025-10-06_20-06-02.mp4"
     print(f"[INFO] Запускаю инференс на видео: {video_path}")
 
     start_time = time.time()
@@ -118,7 +118,7 @@ def main():
     # ---------------------------
     print("[INFO] Запускаю валидацию модели на твоём датасете...")
 
-    metrics = model.val(data="dataset/data.yaml")
+    metrics = model.val(data="new_dataset_yolo11/data.yaml")
 
     print("\n[RESULT] Метрики модели:")
     print_and_save_metrics(metrics, model=model, out_dir="runs/metrics/my_run")

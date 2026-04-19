@@ -1,23 +1,35 @@
 # Файлы видео и мультимедиа
-videos/
+video/
+video_results/
 *.mp4
+*.MP4
 *.avi
+*.AVI
 *.mov
+*.MOV
 *.mkv
+*.MKV
 
 # Данные и датасеты
 data/
 dataset/
 datasets/
+new_dataset_yolo11/
+new_dataset_yolo26/
 *.zip
 *.rar
 *.tar.gz
+archive/
 
 # Веса моделей и чекпоинты
 checkpoints/
 *.pth
 *.pt
 *.bin
+!best_weights/
+!best_weights/rtdetr_best.pt
+!best_weights/yolo11L_best.pt
+!best_weights/yolo26L_best.pt
 
 # Результаты обучения, логи
 results/
@@ -35,3 +47,5 @@ __pycache__/
 .idea/
 .DS_Store
 
+# Артефакты обучения Ultralytics
+runs/
