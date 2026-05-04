@@ -1,4 +1,114 @@
-# Traffic Signs Detection Project
+# Проект распознавания дорожных знаков
+
+## Backend MVP для распознавания ограничений скорости на YOLO26
+
+В репозитории реализован минимальный backend MVP на FastAPI для инференса
+дорожных знаков по изображениям. MVP использует обученную модель YOLO26:
+
+```text
+best_weights/yolo26L_best.pt
+```
+
+Корневой файл `main.py` является legacy-экспериментальным скриптом и не
+используется как точка входа backend-а. Данный файл был переименован в `main_inference.py`.
+
+### Фокус MVP
+
+Backend является микросервисом поддержки принятия решений для знаков
+ограничения скорости в контексте Российской Федерации. Он не реализует
+видеостриминг, PyQt UI, Docker или логику автономного вождения.
+
+Только следующие классы модели могут влиять на активное состояние скорости:
+
+```text
+forb_speed_over_5
+forb_speed_over_10
+forb_speed_over_20
+forb_speed_over_30
+forb_speed_over_40
+forb_speed_over_50
+forb_speed_over_60
+forb_speed_over_70
+forb_speed_over_80
+forb_speed_over_90
+forb_speed_over_100
+forb_speed_over_130
+```
+
+Все остальные обнаруженные классы игнорируются в логике принятия решения.
+Значение `unknown` используется только как внутреннее состояние backend-а.
+Это не класс модели.
+
+### Установка зависимостей
+
+```bash
+pip install -r requirements.txt
+```
+
+### Запуск backend-а
+
+```bash
+uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```
+
+Опциональный порог уверенности:
+
+```bash
+set CONFIDENCE_THRESHOLD=0.3
+uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```
+
+### Endpoint-ы
+
+Проверка состояния сервиса:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+Предсказание по изображению:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/predict" ^
+  -F "file=@path\to\image.jpg"
+```
+
+Endpoint `/predict` возвращает JSON следующего вида:
+
+```json
+{
+  "detected": true,
+  "speed_sign_detected": true,
+  "detections": [
+    {
+      "label": "forb_speed_over_60",
+      "confidence": 0.91,
+      "bbox": [10.0, 20.0, 120.0, 160.0]
+    }
+  ],
+  "main_sign": "forb_speed_over_60",
+  "speed_limit": 60,
+  "confidence": 0.91,
+  "message": "Ограничение скорости 60 км/ч",
+  "state": "known",
+  "display_should_update": true
+}
+```
+
+### Поведение состояния
+
+При запуске активное состояние равно `unknown`, поэтому интерфейс должен
+оставаться пустым.
+
+Если обнаружен валидный знак ограничения скорости, backend выбирает
+разрешённую speed-limit детекцию с наибольшей уверенностью, обновляет активную
+скорость и возвращает `state = "known"`.
+
+Если валидный знак ограничения скорости не обнаружен, но скорость уже была
+известна ранее, backend сохраняет последнюю активную скорость и возвращает
+`display_should_update = false`.
+
+Активная скорость сбрасывается только при перезапуске процесса сервиса.
 
 Проект по обнаружению дорожных знаков с использованием моделей компьютерного зрения на базе Ultralytics RT-DETR / YOLO.
 
@@ -66,18 +176,18 @@ https://universe.roboflow.com/radu-oprea-r4xnm/traffic-signs-detection-europe/da
 python main.py
 ```
 
-## Weights
+## Веса моделей
 
 В проекте используются следующие веса моделей:
 
-### Pretrained weights
+### Предобученные веса
 Файлы предобученных моделей должны находиться в папке `pretrained_weights/`:
 - `rtdetr-l.pt`
 - `yolo11l.pt`
 - `yolo11n.pt`
 - `yolo26l.pt`
 
-### Best trained weights
+### Лучшие обученные веса
 Финальные обученные веса должны находиться в папке `best_weights/`:
 - `rtdetr_best.pt`
 - `yolo11L_best.pt`
@@ -85,7 +195,7 @@ python main.py
 
 > Если весов нет в репозитории, их необходимо добавить вручную в соответствующие папки перед запуском проекта.
 
-## Requirements
+## Требования
 
 - Python 3.10+
 - ultralytics
