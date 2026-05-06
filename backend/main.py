@@ -32,12 +32,18 @@ def health() -> dict:
 
 
 @app.post("/predict")
-async def predict(file: UploadFile = File(...)) -> dict:
+async def predict(
+    file: UploadFile = File(...),
+    include_preview_detections: bool = False,
+) -> dict:
     image_bytes = await file.read()
     if not image_bytes:
         raise HTTPException(status_code=400, detail="Загруженное изображение пустое")
 
     try:
-        return service.predict(image_bytes)
+        return service.predict(
+            image_bytes,
+            include_preview_detections=include_preview_detections,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

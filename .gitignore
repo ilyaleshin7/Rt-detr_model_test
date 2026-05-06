@@ -21,6 +21,8 @@ new_dataset_yolo26/
 *.tar.gz
 archive/
 Test_photos/
+ui/assets/
+metrics_after_inference/
 
 # Веса моделей и чекпоинты
 checkpoints/

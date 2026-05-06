@@ -59,7 +59,11 @@ class SpeedLimitService:
         actual_labels = {self.model_names[class_id] for class_id in self.allowed_class_ids}
         return [label for label in SPEED_LIMIT_CLASSES if label in actual_labels]
 
-    def predict(self, image_bytes: bytes) -> PredictionResponse:
+    def predict(
+        self,
+        image_bytes: bytes,
+        include_preview_detections: bool = False,
+    ) -> dict[str, Any]:
         if self.model is None:
             raise RuntimeError("Модель не загружена")
 
@@ -72,6 +76,7 @@ class SpeedLimitService:
 
         raw_detection_count = 0
         speed_detections: list[Detection] = []
+        preview_detections: list[dict[str, Any]] = []
 
         if results:
             result = results[0]
@@ -79,6 +84,9 @@ class SpeedLimitService:
             if boxes is not None:
                 for box in boxes:
                     raw_detection_count += 1
+                    if include_preview_detections:
+                        preview_detections.append(self._box_to_preview_detection(box))
+
                     detection = self._box_to_speed_detection(box)
                     if detection is not None:
                         speed_detections.append(detection)
@@ -87,9 +95,14 @@ class SpeedLimitService:
 
         with self._lock:
             if main_detection is not None:
-                return self._apply_detected_speed(raw_detection_count, speed_detections, main_detection)
+                response = self._apply_detected_speed(raw_detection_count, speed_detections, main_detection)
+            else:
+                response = self._apply_no_speed_detection(raw_detection_count)
 
-            return self._apply_no_speed_detection(raw_detection_count)
+        if include_preview_detections:
+            response["preview_detections"] = preview_detections
+
+        return response
 
     def health(self) -> dict[str, Any]:
         return {
@@ -171,6 +184,19 @@ class SpeedLimitService:
             "label": label,
             "confidence": round(confidence, 4),
             "bbox": bbox,
+        }
+
+    def _box_to_preview_detection(self, box: Any) -> dict[str, Any]:
+        class_id = int(box.cls.item())
+        label = self.model_names.get(class_id, f"class_{class_id}")
+        confidence = float(box.conf.item())
+        bbox = [round(float(value), 2) for value in box.xyxy[0].tolist()]
+
+        return {
+            "label": label,
+            "confidence": round(confidence, 4),
+            "bbox": bbox,
+            "is_speed_limit": class_id in self.allowed_class_ids,
         }
 
     @staticmethod
