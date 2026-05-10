@@ -2,13 +2,20 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 
-from .config import MODEL_PATH, get_confidence_threshold
+from .config import (
+    MODEL_PATH,
+    get_confidence_threshold,
+    get_min_confidence_for_state_update,
+    get_required_confirmations,
+)
 from .speed_service import SpeedLimitService
 
 
 service = SpeedLimitService(
     model_path=MODEL_PATH,
     confidence_threshold=get_confidence_threshold(),
+    required_confirmations=get_required_confirmations(),
+    min_confidence_for_state_update=get_min_confidence_for_state_update(),
 )
 
 

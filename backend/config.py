@@ -34,3 +34,29 @@ def get_confidence_threshold() -> float:
         raise ValueError("CONFIDENCE_THRESHOLD должен быть в диапазоне от 0 до 1")
 
     return value
+
+
+def get_required_confirmations() -> int:
+    raw_value = os.getenv("REQUIRED_CONFIRMATIONS", "2")
+    try:
+        value = int(raw_value)
+    except ValueError as exc:
+        raise ValueError("REQUIRED_CONFIRMATIONS должен быть целым числом") from exc
+
+    if value < 1:
+        raise ValueError("REQUIRED_CONFIRMATIONS должен быть не меньше 1")
+
+    return value
+
+
+def get_min_confidence_for_state_update() -> float:
+    raw_value = os.getenv("MIN_CONFIDENCE_FOR_STATE_UPDATE", "0.7")
+    try:
+        value = float(raw_value)
+    except ValueError as exc:
+        raise ValueError("MIN_CONFIDENCE_FOR_STATE_UPDATE должен быть числом") from exc
+
+    if not 0 <= value <= 1:
+        raise ValueError("MIN_CONFIDENCE_FOR_STATE_UPDATE должен быть в диапазоне от 0 до 1")
+
+    return value

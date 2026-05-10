@@ -44,11 +44,16 @@ class BackendClient:
         self,
         frame: Any,
         include_preview_detections: bool = False,
+        max_frame_width: int | None = None,
     ) -> dict[str, Any]:
         if frame is None:
             raise BackendClientError("Кадр для отправки пустой")
 
-        success, encoded_image = cv2.imencode(".jpg", frame)
+        original_height, original_width = frame.shape[:2]
+        request_frame = self._resize_frame_for_request(frame, max_frame_width)
+        request_height, request_width = request_frame.shape[:2]
+
+        success, encoded_image = cv2.imencode(".jpg", request_frame)
         if not success:
             raise BackendClientError("Не удалось закодировать кадр в JPEG")
 
@@ -63,6 +68,8 @@ class BackendClient:
         elapsed_ms = (time.perf_counter() - started_at) * 1000
         payload = self._json_response(response)
         payload["_request_time_ms"] = round(elapsed_ms, 2)
+        payload["_frame_scale_x"] = original_width / request_width if request_width else 1.0
+        payload["_frame_scale_y"] = original_height / request_height if request_height else 1.0
         return payload
 
     def _request(self, method: str, path: str, **kwargs: Any) -> requests.Response:
@@ -115,3 +122,16 @@ class BackendClient:
             return None
 
         return {"include_preview_detections": "true"}
+
+    @staticmethod
+    def _resize_frame_for_request(frame: Any, max_frame_width: int | None) -> Any:
+        if max_frame_width is None or max_frame_width <= 0:
+            return frame
+
+        height, width = frame.shape[:2]
+        if width <= max_frame_width:
+            return frame
+
+        scale = max_frame_width / width
+        new_size = (max_frame_width, max(1, int(height * scale)))
+        return cv2.resize(frame, new_size, interpolation=cv2.INTER_AREA)

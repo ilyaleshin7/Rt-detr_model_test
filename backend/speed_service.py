@@ -23,14 +23,31 @@ class ActiveSpeedState:
         return self.speed_limit is not None
 
 
+@dataclass
+class PendingSpeedCandidate:
+    label: str | None = None
+    speed_limit: int | None = None
+    confidence: float | None = None
+    count: int = 0
+
+
 class SpeedLimitService:
-    def __init__(self, model_path: Path, confidence_threshold: float) -> None:
+    def __init__(
+        self,
+        model_path: Path,
+        confidence_threshold: float,
+        required_confirmations: int = 2,
+        min_confidence_for_state_update: float = 0.7,
+    ) -> None:
         self.model_path = model_path
         self.confidence_threshold = confidence_threshold
+        self.required_confirmations = required_confirmations
+        self.min_confidence_for_state_update = min_confidence_for_state_update
         self.model: Any | None = None
         self.model_names: dict[int, str] = {}
         self.allowed_class_ids: set[int] = set()
         self.state = ActiveSpeedState()
+        self.pending = PendingSpeedCandidate()
         self._lock = Lock()
 
     def load_model(self) -> None:
@@ -94,10 +111,11 @@ class SpeedLimitService:
         main_detection = self._select_main_detection(speed_detections)
 
         with self._lock:
-            if main_detection is not None:
-                response = self._apply_detected_speed(raw_detection_count, speed_detections, main_detection)
-            else:
-                response = self._apply_no_speed_detection(raw_detection_count)
+            response = self._apply_confirmation_logic(
+                raw_detection_count,
+                speed_detections,
+                main_detection,
+            )
 
         if include_preview_detections:
             response["preview_detections"] = preview_detections
@@ -110,12 +128,67 @@ class SpeedLimitService:
             "model_loaded": self.is_loaded,
             "model_path": str(self.model_path),
             "confidence_threshold": self.confidence_threshold,
+            "required_confirmations": self.required_confirmations,
+            "min_confidence_for_state_update": self.min_confidence_for_state_update,
             "state": "known" if self.state.is_known else "unknown",
             "speed_limit": self.state.speed_limit,
+            "pending_label": self.pending.label,
+            "pending_count": self.pending.count,
             "allowed_speed_classes": self.allowed_labels,
         }
 
-    def _apply_detected_speed(
+    def _apply_confirmation_logic(
+        self,
+        raw_detection_count: int,
+        speed_detections: list[Detection],
+        main_detection: Detection | None,
+    ) -> PredictionResponse:
+        candidate = self._state_update_candidate(main_detection)
+        speed_sign_detected = len(speed_detections) > 0
+
+        if candidate is None:
+            self._reset_pending()
+            return self._current_state_response(raw_detection_count, speed_detections, speed_sign_detected)
+
+        if self.state.label == candidate["label"]:
+            self._reset_pending()
+            return self._current_state_response(raw_detection_count, speed_detections, True)
+
+        self._update_pending(candidate)
+        if self.pending.count >= self.required_confirmations:
+            self._reset_pending()
+            return self._apply_confirmed_speed(raw_detection_count, speed_detections, candidate)
+
+        return self._current_state_response(raw_detection_count, speed_detections, True)
+
+    def _state_update_candidate(self, main_detection: Detection | None) -> Detection | None:
+        if main_detection is None:
+            return None
+
+        if main_detection["confidence"] < self.min_confidence_for_state_update:
+            return None
+
+        return main_detection
+
+    def _update_pending(self, candidate: Detection) -> None:
+        label = candidate["label"]
+        speed_limit = SPEED_LIMIT_CLASSES[label]
+        if self.pending.label == label:
+            self.pending.count += 1
+            self.pending.confidence = candidate["confidence"]
+            return
+
+        self.pending = PendingSpeedCandidate(
+            label=label,
+            speed_limit=speed_limit,
+            confidence=candidate["confidence"],
+            count=1,
+        )
+
+    def _reset_pending(self) -> None:
+        self.pending = PendingSpeedCandidate()
+
+    def _apply_confirmed_speed(
         self,
         raw_detection_count: int,
         speed_detections: list[Detection],
@@ -143,6 +216,37 @@ class SpeedLimitService:
             "message": message,
             "state": "known",
             "display_should_update": display_should_update,
+        }
+
+    def _current_state_response(
+        self,
+        raw_detection_count: int,
+        speed_detections: list[Detection],
+        speed_sign_detected: bool,
+    ) -> PredictionResponse:
+        if self.state.is_known:
+            return {
+                "detected": raw_detection_count > 0,
+                "speed_sign_detected": speed_sign_detected,
+                "detections": speed_detections,
+                "main_sign": self.state.label,
+                "speed_limit": self.state.speed_limit,
+                "confidence": self.state.confidence,
+                "message": self.state.message,
+                "state": "known",
+                "display_should_update": False,
+            }
+
+        return {
+            "detected": raw_detection_count > 0,
+            "speed_sign_detected": speed_sign_detected,
+            "detections": speed_detections,
+            "main_sign": None,
+            "speed_limit": None,
+            "confidence": None,
+            "message": "Сервис ещё не обнаружил знак ограничения скорости",
+            "state": "unknown",
+            "display_should_update": False,
         }
 
     def _apply_no_speed_detection(self, raw_detection_count: int) -> PredictionResponse:

@@ -21,12 +21,14 @@ class VideoWorker(QThread):
         video_path: str | Path,
         client: BackendClient,
         send_every_n_frames: int = 5,
+        max_frame_width: int | None = None,
         parent: Any | None = None,
     ) -> None:
         super().__init__(parent)
         self.video_path = Path(video_path)
         self.client = client
         self.send_every_n_frames = max(1, send_every_n_frames)
+        self.max_frame_width = max_frame_width if max_frame_width and max_frame_width > 0 else None
         self._stop_requested = False
 
     def stop(self) -> None:
@@ -72,6 +74,7 @@ class VideoWorker(QThread):
                         prediction = self.client.predict_frame(
                             frame,
                             include_preview_detections=True,
+                            max_frame_width=self.max_frame_width,
                         )
                     except BackendClientError as exc:
                         message = str(exc)
@@ -143,6 +146,7 @@ class VideoWorker(QThread):
                 "total_frames": total_frames,
                 "analyzed_frames": analyzed_frames,
                 "send_every_n_frames": self.send_every_n_frames,
+                "max_frame_width": self.max_frame_width or 0,
                 "avg_inference_time_ms": round(sum(inference_times_ms) / len(inference_times_ms), 2)
                 if inference_times_ms
                 else 0.0,
@@ -160,6 +164,7 @@ class VideoWorker(QThread):
             "total_frames": 0,
             "analyzed_frames": 0,
             "send_every_n_frames": self.send_every_n_frames,
+            "max_frame_width": self.max_frame_width or 0,
             "avg_inference_time_ms": 0.0,
             "estimated_processing_fps": 0.0,
             "total_speed_detections": 0,
@@ -171,14 +176,40 @@ class VideoWorker(QThread):
     @staticmethod
     def _preview_detections_from_prediction(prediction: dict[str, Any]) -> list[dict[str, Any]]:
         detections = prediction.get("preview_detections")
+        scale_x = float(prediction.get("_frame_scale_x", 1.0))
+        scale_y = float(prediction.get("_frame_scale_y", 1.0))
+
         if isinstance(detections, list):
-            return [detection for detection in detections if isinstance(detection, dict)]
+            return [
+                VideoWorker._scale_detection_bbox(detection, scale_x, scale_y)
+                for detection in detections
+                if isinstance(detection, dict)
+            ]
 
         speed_only = prediction.get("detections")
         if isinstance(speed_only, list):
-            return [detection for detection in speed_only if isinstance(detection, dict)]
+            return [
+                VideoWorker._scale_detection_bbox(detection, scale_x, scale_y)
+                for detection in speed_only
+                if isinstance(detection, dict)
+            ]
 
         return []
+
+    @staticmethod
+    def _scale_detection_bbox(detection: dict[str, Any], scale_x: float, scale_y: float) -> dict[str, Any]:
+        scaled_detection = dict(detection)
+        bbox = detection.get("bbox")
+        if isinstance(bbox, list) and len(bbox) == 4:
+            x1, y1, x2, y2 = [float(value) for value in bbox]
+            scaled_detection["bbox"] = [
+                round(x1 * scale_x, 2),
+                round(y1 * scale_y, 2),
+                round(x2 * scale_x, 2),
+                round(y2 * scale_y, 2),
+            ]
+
+        return scaled_detection
 
     @staticmethod
     def _draw_detections(frame: Any, detections: list[dict[str, Any]]) -> Any:

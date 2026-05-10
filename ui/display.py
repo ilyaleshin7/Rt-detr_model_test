@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
     QMainWindow,
     QPushButton,
     QSizePolicy,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -77,6 +78,23 @@ class TrafficSignWindow(QMainWindow):
         self.file_path_input = QLineEdit()
         self.file_path_input.setReadOnly(True)
         self.file_path_input.setPlaceholderText("Файл не выбран")
+
+        self.frame_stride_input = QSpinBox()
+        self.frame_stride_input.setRange(1, 120)
+        self.frame_stride_input.setValue(5)
+        self.frame_stride_input.setSuffix(" кадр.")
+
+        self.max_frame_width_input = QSpinBox()
+        self.max_frame_width_input.setRange(0, 4096)
+        self.max_frame_width_input.setSingleStep(160)
+        self.max_frame_width_input.setValue(0)
+        self.max_frame_width_input.setSuffix(" px")
+        self.max_frame_width_input.setSpecialValueText("без resize")
+
+        self.frame_stride_label = QLabel("Отправлять каждый:")
+        self.frame_stride_label.setObjectName("settingsLabel")
+        self.max_frame_width_label = QLabel("Макс. ширина кадра:")
+        self.max_frame_width_label.setObjectName("settingsLabel")
 
         self.check_backend_button = QPushButton("Проверить backend")
         self.choose_image_button = QPushButton("Выбрать изображение")
@@ -140,8 +158,16 @@ class TrafficSignWindow(QMainWindow):
         file_layout.addWidget(QLabel("Файл:"))
         file_layout.addWidget(self.file_path_input)
 
+        settings_layout = QHBoxLayout()
+        settings_layout.addWidget(self.frame_stride_label)
+        settings_layout.addWidget(self.frame_stride_input)
+        settings_layout.addWidget(self.max_frame_width_label)
+        settings_layout.addWidget(self.max_frame_width_input)
+        settings_layout.addStretch(1)
+
         root_layout.addLayout(main_layout, stretch=1)
         root_layout.addLayout(file_layout)
+        root_layout.addLayout(settings_layout)
         root_layout.addLayout(button_layout)
 
         self.setCentralWidget(central_widget)
@@ -186,6 +212,10 @@ class TrafficSignWindow(QMainWindow):
                 color: #52606d;
                 font-size: 14px;
             }
+            QLabel#settingsLabel {
+                color: #18202a;
+                font-size: 14px;
+            }
             QPushButton {
                 min-width: 170px;
                 min-height: 36px;
@@ -211,6 +241,37 @@ class TrafficSignWindow(QMainWindow):
                 background: #ffffff;
                 border: 1px solid #b9c3cf;
                 border-radius: 6px;
+            }
+            QSpinBox {
+                min-height: 30px;
+                padding: 4px 28px 4px 8px;
+                color: #18202a;
+                background: #ffffff;
+                border: 1px solid #b9c3cf;
+                border-radius: 6px;
+            }
+            QSpinBox::up-button {
+                subcontrol-origin: border;
+                subcontrol-position: top right;
+                width: 24px;
+                height: 17px;
+                border-left: 1px solid #b9c3cf;
+                border-bottom: 1px solid #d2dae3;
+                border-top-right-radius: 6px;
+                background: #f8fafc;
+            }
+            QSpinBox::down-button {
+                subcontrol-origin: border;
+                subcontrol-position: bottom right;
+                width: 24px;
+                height: 17px;
+                border-left: 1px solid #b9c3cf;
+                border-bottom-right-radius: 6px;
+                background: #f8fafc;
+            }
+            QSpinBox::up-button:hover,
+            QSpinBox::down-button:hover {
+                background: #edf2f7;
             }
             """
         )
@@ -288,7 +349,8 @@ class TrafficSignWindow(QMainWindow):
         self.video_worker = VideoWorker(
             video_path=self.selected_video_path,
             client=self.client,
-            send_every_n_frames=5,
+            send_every_n_frames=self.frame_stride_input.value(),
+            max_frame_width=self.max_frame_width_input.value(),
         )
         self.video_worker.frame_ready.connect(self.update_video_frame)
         self.video_worker.prediction_received.connect(self.apply_prediction)
